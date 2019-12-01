@@ -54,7 +54,7 @@ script:
   - cd $TRAVIS_BUILD_DIR/pyscf &&
     echo 'pbc_tools_pbc_fft_engine = "NUMPY"' > pyscf_config.py
   - OMP_NUM_THREADS=1 PYTHONPATH=$TRAVIS_BUILD_DIR:$PYTHONPATH PYSCF_CONFIG_FILE=$(pwd)/pyscf_config.py
-    nosetests -v
+    nosetests -v --with-timer
     --exclude-dir=geomopt --exclude-dir=dmrgscf --exclude-dir=fciqmcscf
     --exclude-dir=icmpspt --exclude-dir=shciscf --exclude-dir=examples --exclude-dir=nao
     --exclude-dir=cornell_shci
@@ -73,6 +73,8 @@ script:
     -I test_kuccsd_supercell_vs_kpts\.py
     -I test_kccsd_ghf\.py
     -I test_h_.*\.py
+    -I test_P_uadc_ea.py
+    -I test_P_uadc_ip.py
     --exclude-test=pbc/gw/test/test_kgw_slow_supercell.DiamondTestSupercell3
     --exclude-test=pbc/gw/test/test_kgw_slow_supercell.DiamondKSTestSupercell3
     --exclude-test=pbc/gw/test/test_kgw_slow.DiamondTestSupercell3

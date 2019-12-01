@@ -766,7 +766,8 @@ def _state_average_mcscf_solver(casscf, fcisolver):
             # Do not overwrite self.e_tot because .e_tot needs to be used in
             # geometry optimization. self.e_states can be used to access the
             # energy of each state
-            #self.e_tot = self.fcisolver.e_states
+            # MRH: NO, no one ever does this!
+            self.e_tot = self.fcisolver.e_states
             logger.note(self, 'CASCI state-averaged energy = %.15g', self.e_average)
             logger.note(self, 'CASCI energy for each state')
             if has_spin_square:

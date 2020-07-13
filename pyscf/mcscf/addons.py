@@ -372,42 +372,52 @@ def project_init_guess(casscf, init_mo, prev_mol=None):
 #            return casscf._scf.eig(fock, s)[1]
 
         nocc = ncore + casscf.ncas
-        if ncore > 0:
-            mo0core = init_mo[:,:ncore]
-            s1 = reduce(numpy.dot, (mfmo.T, s, mo0core))
-            s1core = reduce(numpy.dot, (mo0core.T, s, mo0core))
-            coreocc = numpy.einsum('ij,ji->i', s1, lib.cho_solve(s1core, s1.T))
-            coreidx = numpy.sort(numpy.argsort(-coreocc)[:ncore])
-            logger.debug(casscf, 'Core indices %s', coreidx)
-            logger.debug(casscf, 'Core components %s', coreocc[coreidx])
-            # take HF core
-            mocore = mfmo[:,coreidx]
-
-            # take projected CAS space
-            mocas = init_mo[:,ncore:nocc] \
-                  - reduce(numpy.dot, (mocore, mocore.T, s, init_mo[:,ncore:nocc]))
-            mocc = lo.orth.vec_lowdin(numpy.hstack((mocore, mocas)), s)
-        else:
-            mocc = lo.orth.vec_lowdin(init_mo[:,:nocc], s)
-
-        # remove core and active space from rest
-        if mocc.shape[1] < mfmo.shape[1]:
+# MRH 07/12/2020: redesigning this to preserve the active orbitals at a high priority
+        mcas = lo.orth.vec_lowdin (init_mo[:,ncore:nocc], s)
+        # remove active space from rest
+        if mcas.shape[1] < mfmo.shape[1]:
             if casscf.mol.symmetry:
                 restorb = []
                 orbsym = scf.hf_symm.get_orbsym(casscf.mol, mfmo, s)
                 for ir in set(orbsym):
                     mo_ir = mfmo[:,orbsym==ir]
-                    rest = mo_ir - reduce(numpy.dot, (mocc, mocc.T, s, mo_ir))
+                    rest = mo_ir - reduce(numpy.dot, (mcas, mcas.T, s, mo_ir))
                     e, u = numpy.linalg.eigh(reduce(numpy.dot, (rest.T, s, rest)))
                     restorb.append(numpy.dot(rest, u[:,e>1e-7]))
                 restorb = numpy.hstack(restorb)
             else:
-                rest = mfmo - reduce(numpy.dot, (mocc, mocc.T, s, mfmo))
+                rest = mfmo - reduce(numpy.dot, (mcas, mcas.T, s, mfmo))
                 e, u = numpy.linalg.eigh(reduce(numpy.dot, (rest.T, s, rest)))
                 restorb = numpy.dot(rest, u[:,e>1e-7])
-            mo = numpy.hstack((mocc, restorb))
+            if ncore > 0:
+                mo0core = init_mo[:,:ncore]
+                s1 = reduce(numpy.dot, (restorb.T, s, mo0core))
+                s1core = reduce(numpy.dot, (mo0core.T, s, mo0core))
+                dm_core = numpy.dot (s1, lib.cho_solve (s1core, s1.T))
+                if casscf.mol.symmetry:
+                    mocore = []
+                    movirt = []
+                    orbsym = scf.hf_symm.get_orbsym (casscf.mol, init_mo[:,:ncore], s)
+                    ncore_symm = [numpy.count_nonzero (orbsym==ir) for ir in casscf.mol.irrep_id]
+                    orbsym = scf.hf_symm.get_orbsym (casscf.mol, restorb, s)
+                    for ir, ncore_ir in zip (casscf.mol.irrep_id, ncore_symm):
+                        norb_ir = numpy.count_nonzero (orbsym==ir)
+                        if norb_ir == 0: continue
+                        nvirt_ir = norb_ir - ncore_ir
+                        dm_ir = dm_ir[:,orbsym==ir][orbsym==ir,:]
+                        e, u = numpy.linalg.eigh (-dm_ir)
+                        natorb = numpy.dot (restorb[:,orbsym==ir], u)
+                        if ncore_ir > 0: mocore.append (natorb[:,:ncore_ir])
+                        if nvirt_ir > 0: movirt.append (natorb[:,ncore_ir:])
+                    mo = numpy.hstack (mocore + [mcas,] + movirt)
+                else:
+                    e, u = numpy.linalg.eigh (-dm_core)
+                    natorb = numpy.dot (restorb, u)
+                    mo = numpy.hstack ((natorb[:,:ncore], mcas, natorb[:,ncore:]))
+            else:
+                mo = numpy.hstack ((mcas, restorb))
         else:
-            mo = mocc
+            mo = mcas
 
         if casscf.verbose >= logger.DEBUG:
             s1 = reduce(numpy.dot, (mo[:,ncore:nocc].T, s, mfmo))

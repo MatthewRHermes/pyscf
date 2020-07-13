@@ -404,7 +404,7 @@ def project_init_guess(casscf, init_mo, prev_mol=None):
                         norb_ir = numpy.count_nonzero (orbsym==ir)
                         if norb_ir == 0: continue
                         nvirt_ir = norb_ir - ncore_ir
-                        dm_ir = dm_ir[:,orbsym==ir][orbsym==ir,:]
+                        dm_ir = dm_core[:,orbsym==ir][orbsym==ir,:]
                         e, u = numpy.linalg.eigh (-dm_ir)
                         natorb = numpy.dot (restorb[:,orbsym==ir], u)
                         if ncore_ir > 0: mocore.append (natorb[:,:ncore_ir])

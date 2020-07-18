@@ -26,6 +26,7 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf.mcscf import casci
 from pyscf.mcscf.casci import get_fock, cas_natorb, canonicalize
+from pyscf.mcscf.casci_symm import label_symmetry_
 from pyscf.mcscf import mc_ao2mo
 from pyscf.mcscf import chkfile
 from pyscf import ao2mo
@@ -33,6 +34,7 @@ from pyscf import gto
 from pyscf import scf
 from pyscf.soscf import ciah
 from pyscf import __config__
+import traceback
 
 WITH_MICRO_SCHEDULER = getattr(__config__, 'mcscf_mc1step_CASSCF_with_micro_scheduler', False)
 WITH_STEPSIZE_SCHEDULER = getattr(__config__, 'mcscf_mc1step_CASSCF_with_stepsize_scheduler', True)
@@ -530,7 +532,27 @@ def as_scanner(mc):
                 mo = mf_scanner.mo_coeff
             else:
                 mo = self.mo_coeff
+            try:
+                mo = label_symmetry_(self, mo, self.ci)
+                orbsym = mo.orbsym
+            except Exception as e:
+                orbsym = sum ([str (ei) for ei in traceback.format_exception (Exception, e, sys.last_traceback)])
+            logger.debug (self, "CASSCF_Scanner orbsym before projection:\n{}".format (orbsym))
+            smoH_old = numpy.dot (mf_scanner.get_ovlp (), mo).conjugate ().T
             mo = project_init_guess(self, mo)
+            ovlp = numpy.dot (smoH_old, mo).conjugate ().T
+            logger.debug (self, "CASSCF_Scanner mo projection overlap diagonal:\n{}".format (ovlp.diagonal ()))
+            ovlp = ovlp[self.ncore:,self.ncore:][:self.ncas,:self.ncas]
+            logger.debug (self, "CASSCF_Scanner mo projection overlap active space:\n{}".format (ovlp))
+            u, svals, vh = scipy.linalg.svd (ovlp)
+            logger.debug (self, "CASSCF_Scanner mo projection overlap active space singular values:\n{}".format (svals))
+            mo[:,self.ncore:][:,:self.ncas] = reduce (numpy.dot, (mo[:,self.ncore:][:,:self.ncas], u, vh))
+            try:
+                mo = label_symmetry_(self, mo, self.ci)
+                orbsym = mo.orbsym
+            except Exception as e:
+                orbsym = sum ([str (ei) for ei in traceback.format_exception (Exception, e, sys.last_traceback)])
+            logger.debug (self, "CASSCF_Scanner orbsym after projection:\n{}".format (orbsym))
             e_tot = self.kernel(mo, self.ci)[0]
             return e_tot
     return CASSCF_Scanner(mc)

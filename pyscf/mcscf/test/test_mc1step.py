@@ -314,6 +314,45 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs((civec[0]*mc.ci[0]).sum()), 1, 7)
         self.assertAlmostEqual(abs((civec[1]*mc.ci[1]).sum()), 1, 7)
 
+    def test_gen_g_hop (self):
+        mc = mcscf.CASSCF(m, 4, 4).run ()
+        mo = mc.mo_coeff = m.mo_coeff
+        nmo, ncore, ncas, nelecas = mo.shape[1], mc.ncore, mc.ncas, mc.nelecas
+        ci, nocc = mc.ci, ncore+ncas
+        casdm1, casdm2 = mc.fcisolver.make_rdm12 (ci, ncas, nelecas)
+        def _get_energy (u=1):
+            mo1 = numpy.dot (mo, u)
+            eris = mc.ao2mo (mo1)
+            fcasci = mcscf.mc1step._fake_h_for_fast_casci (mc, mo1, eris)
+            h1, h0 = fcasci.get_h1eff ()
+            h2 = fcasci.get_h2eff ()
+            return (h0 + numpy.tensordot (h1, casdm1, axes=2)
+                    + 0.5 * numpy.tensordot (h2, casdm2, axes=4))
+        eris = mc.ao2mo (mo)
+        e0 = _get_energy () 
+        g0, g_update, h_op, h_diag = mc.gen_g_hop (mo, numpy.eye (nmo),
+            casdm1, casdm2, eris)
+        nvar = len (g0)
+        numpy.random.seed (1)
+        x0 = ((2 * numpy.random.random (nvar)) - 1) / 2**20
+        x0_norm = numpy.linalg.norm (x0)
+        # Analytic
+        gx = numpy.dot (g0, x0) 
+        hx = h_op (x0)
+        xhx = numpy.dot (hx, x0) 
+        hx_norm = numpy.linalg.norm (hx)
+        # Numerical
+        u1 = mc.update_rotate_matrix (x0)
+        e1 = _get_energy (u1)
+        g1 = g_update (u1, ci) 
+        de = (e1-e0)
+        dg = (g1-g0)
+        dg_norm = numpy.linalg.norm (dg)
+        # Relative error
+        g_err = (2*gx+xhx - de) / de
+        with self.subTest ('gradient'): self.assertLess (g_err, 1e-5)
+        h_err = numpy.linalg.norm (hx - dg) / dg_norm
+        with self.subTest ('hessian'): self.assertLess (h_err, 1e-5)
 
 if __name__ == "__main__":
     print("Full Tests for mc1step")

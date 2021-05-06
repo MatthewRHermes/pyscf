@@ -169,6 +169,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(lib.finger(mo_occ), 2.418822007439851, 4)
 
     def test_dep4(self):
+        # TODO: fix CASSCF hessian update to pass this test
         mc1 = mcscf.CASSCF(msym, 4, 4)
         mo = mc1.sort_mo_by_irrep({'A1u':2, 'A1g':2})
         mc1.with_dep4 = True
@@ -178,6 +179,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(mc1.e_tot, -105.8292690292608, 8)
 
     def test_dep4_df(self):
+        # TODO: fix CASSCF hessian update to pass this test
         mc1 = mcscf.CASSCF(msym, 4, 4).density_fit()
         mo = mc1.sort_mo_by_irrep({'A1u':2, 'A1g':2})
         mc1.with_dep4 = True

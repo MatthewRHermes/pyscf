@@ -74,6 +74,7 @@ def tearDownModule():
 
 class KnownValues(unittest.TestCase):
     def test_gen_g_hop(self):
+        # TODO: validate CASSCF hessian update, then change reference
         numpy.random.seed(1)
         mo = numpy.random.random(mf.mo_coeff.shape)
         ci0 = numpy.random.random((6,6))
@@ -84,13 +85,14 @@ class KnownValues(unittest.TestCase):
         x = numpy.random.random(gall.size)
         u, ci1 = newton_casscf.extract_rotation(mc, x, 1, ci0)
         self.assertAlmostEqual(lib.finger(gop(u, ci1)), -412.9441873541524, 8)
-        self.assertAlmostEqual(lib.finger(hop(x)), 73.358310983341198, 8)
+        self.assertAlmostEqual(lib.finger(hop(x)), 73.358310983341198, 8) # TODO: update ref
 
     def test_get_grad(self):
         self.assertAlmostEqual(mc.e_tot, -3.6268060853430573, 8)
         self.assertAlmostEqual(abs(mc.get_grad()).max(), 0, 5)
 
     def test_sa_gen_g_hop(self):
+        # TODO: validate CASSCF hessian update, then change reference
         numpy.random.seed(1)
         mo = numpy.random.random(mf.mo_coeff.shape)
         ci0 = numpy.random.random((2,36))
@@ -102,10 +104,11 @@ class KnownValues(unittest.TestCase):
         x = numpy.random.random(gall.size)
         u, ci1 = newton_casscf.extract_rotation(sa, x, 1, ci0)
         self.assertAlmostEqual(lib.finger(gop(u, ci1)), -49.017079186126, 8)
-        self.assertAlmostEqual(lib.finger(hop(x)), 169.47893548740288, 8)
+        self.assertAlmostEqual(lib.finger(hop(x)), 169.47893548740288, 8) # TODO: update ref
 
     def test_sa_get_grad(self):
-        self.assertAlmostEqual(sa.e_tot, -3.62638372957158, 7)
+        # TODO: validate CASSCF hessian update, then change reference
+        self.assertAlmostEqual(sa.e_tot, -3.62638372957158, 7) # TODO: why did this fail? Better solution??
         # MRH 06/24/2020: convergence thresh of scf may not have consistent
         # meaning in SA problems
         self.assertAlmostEqual(abs(sa.get_grad()).max(), 0, 5)

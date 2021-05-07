@@ -169,24 +169,30 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(lib.finger(mo_occ), 2.418822007439851, 4)
 
     def test_dep4(self):
-        # TODO: fix CASSCF hessian update to pass this test
         mc1 = mcscf.CASSCF(msym, 4, 4)
         mo = mc1.sort_mo_by_irrep({'A1u':2, 'A1g':2})
         mc1.with_dep4 = True
         mc1.max_cycle = 1
         mc1.max_cycle_micro = 6
         mc1.kernel(mo)
-        self.assertAlmostEqual(mc1.e_tot, -105.8292690292608, 8)
+        self.assertAlmostEqual(mc1.e_tot, -105.830095088798, 8)
+        # MRH 05/07/2021: reference reduced after Hessian fix
+        # Necessary b/c this tests nonconverged energy
+        # The previous reference was -105.8292690292608
+        # Note that the new reference is lower
 
     def test_dep4_df(self):
-        # TODO: fix CASSCF hessian update to pass this test
         mc1 = mcscf.CASSCF(msym, 4, 4).density_fit()
         mo = mc1.sort_mo_by_irrep({'A1u':2, 'A1g':2})
         mc1.with_dep4 = True
         mc1.max_cycle = 1
         mc1.max_cycle_micro = 6
         mc1.kernel(mo)
-        self.assertAlmostEqual(mc1.e_tot, -105.82923271851176, 8)
+        self.assertAlmostEqual(mc1.e_tot, -105.830032575679, 8)
+        # MRH 05/07/2021: reference reduced after Hessian fix
+        # Necessary b/c this tests nonconverged energy
+        # The previous reference was -105.82923271851176
+        # Note that the new reference is lower
 
     # FIXME: How to test ci_response_space? The test below seems numerical instable
     #def test_ci_response_space(self):

@@ -309,8 +309,9 @@ def gen_g_hop(casscf, mo, ci0, eris, verbose=None):
 
         # H_cc
         hci1 = [hc1 - c1 * ec0 for hc1, c1, ec0 in zip (_Hci (h1cas_0, eri_cas, ci1), ci1, eci0)]
-        hci1 = [hc1 - 2*(hc0 - c0*ec0)*c0.dot(c1) for hc1, hc0, c0, ec0, c1 in zip (hci1, hci0, ci0, eci0, ci1)]
-        hci1 = [hc1 - 2*c0*(hc0 - c0*ec0).dot(c1) for hc1, hc0, c0, ec0, c1 in zip (hci1, hci0, ci0, eci0, ci1)]
+        hci1 = [hc1 - (hc0 - c0*ec0)*c0.dot(c1) for hc1, hc0, c0, ec0, c1 in zip (hci1, hci0, ci0, eci0, ci1)]
+        hci1 = [hc1 - c0*(hc0 - c0*ec0).dot(c1) for hc1, hc0, c0, ec0, c1 in zip (hci1, hci0, ci0, eci0, ci1)]
+        # MRH 05/07/2021: remove erroneous factor of 2 on lines above
 
         # H_co
         rc = x1[:,:ncore]

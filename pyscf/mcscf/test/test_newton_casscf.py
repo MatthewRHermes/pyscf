@@ -65,6 +65,9 @@ mc.kernel()
 sa = CASSCF(mf, 4, 4)
 sa.fcisolver = fci.direct_spin1.FCI (mol)
 sa = sa.state_average ([0.5,0.5]).newton ()
+sa.conv_tol = 1e-9
+# MRH 05/07/2021: Tighten convergence criterion to find consistent
+# triplet-quintet solutoin
 sa.kernel()
 
 def tearDownModule():
@@ -107,10 +110,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(lib.finger(hop(x)), 169.47893548740288, 8) # TODO: update ref
 
     def test_sa_get_grad(self):
-        # TODO: validate CASSCF hessian update, then change reference
-        self.assertAlmostEqual(sa.e_tot, -3.62638372957158, 7) # TODO: why did this fail? Better solution??
-        # MRH 06/24/2020: convergence thresh of scf may not have consistent
-        # meaning in SA problems
+        self.assertAlmostEqual(sa.e_tot, -3.62638372957158, 7)
         self.assertAlmostEqual(abs(sa.get_grad()).max(), 0, 5)
 
     def test_sa_mix(self):

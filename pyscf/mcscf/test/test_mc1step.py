@@ -321,6 +321,15 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs((civec[1]*mc.ci[1]).sum()), 1, 7)
 
     def test_gen_g_hop (self):
+        # Show that:
+        #   1) relative error [(analytic - numerical) / numerical]
+        #      of both gradient and hessian-vector product is
+        #      asymptotically proportional to numerical step size (x**1)
+        #   2) g_update asymptotically agrees with full recalculation
+        #      of g quadratically (err ~x**2)
+        #   3) diagonal hessian agrees with hessian-vector product
+        # Move off of optimized orbitals so that terms in the Hessian that are
+        # proportional to the gradient are double-checked.
         mc = mcscf.CASSCF(m, 4, 4).run ()
         mo = mc.mo_coeff = m.mo_coeff
         nmo, ncore, ncas, nelecas = mo.shape[1], mc.ncore, mc.ncas, mc.nelecas
@@ -336,29 +345,64 @@ class KnownValues(unittest.TestCase):
                     + 0.5 * numpy.tensordot (h2, casdm2, axes=4))
         eris = mc.ao2mo (mo)
         e0 = _get_energy () 
-        g0, g_update, h_op, h_diag = mc.gen_g_hop (mo, numpy.eye (nmo),
-            casdm1, casdm2, eris)
+        g0, g_update, h_op, h_diag = mc.gen_g_hop (mo, 1, casdm1, casdm2, eris)
         nvar = len (g0)
         numpy.random.seed (1)
-        x0 = ((2 * numpy.random.random (nvar)) - 1) / 2**20
-        x0_norm = numpy.linalg.norm (x0)
-        # Analytic
-        gx = numpy.dot (g0, x0) 
-        hx = h_op (x0)
-        xhx = numpy.dot (hx, x0) 
-        hx_norm = numpy.linalg.norm (hx)
-        # Numerical
-        u1 = mc.update_rotate_matrix (x0)
-        e1 = _get_energy (u1)
-        g1 = g_update (u1, ci) 
-        de = (e1-e0)
-        dg = (g1-g0)
-        dg_norm = numpy.linalg.norm (dg)
-        # Relative error
-        g_err = (2*gx+xhx - de) / de
-        with self.subTest ('gradient'): self.assertLess (g_err, 1e-5)
-        h_err = numpy.linalg.norm (hx - dg) / dg_norm
-        with self.subTest ('hessian'): self.assertLess (h_err, 1e-5)
+        x0 = ((2 * numpy.random.random (nvar)) - 1)
+        u0 = mc.update_rotate_matrix (x0)
+        def _true_g_update (u):
+            mo1 = numpy.dot (mo, u)
+            g1 = mc.gen_g_hop (mo1, 1, casdm1, casdm2, mc.ao2mo (mo1))[0]
+            return g1
+        def _get_err (p):
+            x1 = x0 / 2**p
+            x1_norm = numpy.linalg.norm (x1)
+            # Analytic
+            gx = numpy.dot (g0, x1) 
+            hx = h_op (x1)
+            xhx = numpy.dot (hx, x1) 
+            hx_norm = numpy.linalg.norm (hx)
+            # Numerical
+            u1 = mc.update_rotate_matrix (x1/2)
+            e1 = _get_energy (u1)
+            # TODO: rationalize conventions?
+            # mc1step "x" = newton_casscf "x" * 2 
+            # Therefore, I have to divide by 2 above ^, but not in
+            # the newton_casscf version of this test. That's annoying
+            u1 = mc.update_rotate_matrix (x1)
+            g1 = _true_g_update (u1) 
+            de = (e1-e0)
+            dg = (g1-g0)
+            dg_norm = numpy.linalg.norm (dg)
+            # Approximate update
+            g1_approx = g_update (u1, ci)
+            g1_norm = numpy.linalg.norm (g1)
+            # Relative error
+            g_err = (gx - de) / de
+            h_err = numpy.linalg.norm (hx - dg) / dg_norm
+            up_err = numpy.linalg.norm (g1_approx - g1) / g1_norm
+            return x1_norm, g_err, h_err, up_err
+        # To examine the actual convergence, uncomment the below
+        #tab = numpy.array ([_get_err (p) for p in range (21)])
+        #frac_tab = tab[1:,:] / tab[:-1,:]
+        #print ("")
+        #for row, frac_row in zip (tab[1:], frac_tab):
+        #    print (row, frac_row)
+        x2, g2, h2, u2 = _get_err (20)
+        x1, g1, h1, u1 = _get_err (19)
+        with self.subTest ('gradient'): 
+            self.assertAlmostEqual (g2/g1, .5, 2)
+        with self.subTest ('hessian-vector'):
+            self.assertAlmostEqual (h2/h1, .5, 2)
+        with self.subTest ('g_update'):
+            self.assertAlmostEqual (u2/u1, .25, 2)
+        h_diag_ref = numpy.zeros_like (h_diag)
+        for p in range (nvar):
+            x0[:] = 0.0
+            x0[p] = 1.0
+            h_diag_ref[p] = h_op (x0)[p]
+        with self.subTest ('hessian diagonal'):
+            self.assertAlmostEqual (lib.finger (h_diag), lib.finger (h_diag_ref), 9)
 
 if __name__ == "__main__":
     print("Full Tests for mc1step")

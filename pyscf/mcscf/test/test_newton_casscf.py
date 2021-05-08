@@ -86,14 +86,14 @@ def _get_energy (my_mc, mo1, ci1, eris1):
     return (h0 + numpy.tensordot (h1, dm1, axes=2)
             + 0.5 * numpy.tensordot (h2, dm2, axes=4))
 
-def _test_vs_numerical (my_mc, mo0, ci0, eris0, g0, h0op, x0):
+def _test_vs_numerical (my_mc, mo0, ci0, eris0, g0, g1op, h0op, x0):
     ''' Returns a table which reports the fractional error of gradient
         and hessian-vector against finite-difference calculation
         as step size repeatedly halves '''
     e0 = _get_energy (my_mc, mo0, ci0, eris0)
     ci0_arr = numpy.asarray (ci0).reshape (-1,36)
     tab = numpy.zeros ((21,3))
-    for p in range (21):
+    def _get_err (p):
         x1 = x0 / (2**p)
         x1_norm = numpy.linalg.norm (x1)
         u, ci1 = newton_casscf.extract_rotation (my_mc, x1, 1, ci0)
@@ -115,14 +115,21 @@ def _test_vs_numerical (my_mc, mo0, ci0, eris0, g0, h0op, x0):
         xhx = numpy.dot (hx, x1)
         de_test = gx 
         dg_test = hx
+        # g_update
+        g1_approx = g1op (u, ci1)
+        g1_norm = numpy.linalg.norm (g1)
         # Relative error
         de_err = (de_test-de_ref)/de_ref
         dg_err = numpy.linalg.norm (dg_test-dg_ref) / dg_ref_norm
-        tab[p,:] = [x1_norm, de_err, dg_err]
-    #print ("\ntab:")
-    #for row in tab:
-    #    print ("{:.5e} {:.5e} {:.5e}".format (*row))
-    return tab
+        du_err = numpy.linalg.norm (g1_approx-g1) / g1_norm
+        return x1_norm, de_err, dg_err, du_err
+    h_diag_ref = numpy.empty_like (g0)
+    x1 = numpy.empty_like (x0)
+    for p in range (h_diag_ref.size):
+        x1[:] = 0.0
+        x1[p] = 1.0
+        h_diag_ref[p] = h0op (x1)[p]
+    return _get_err, h_diag_ref
 
 def tearDownModule():
     global mol, mf, mc, sa, mol_N2, mf_N2, mc_N2
@@ -139,15 +146,18 @@ class KnownValues(unittest.TestCase):
         gall, gop, hop, hdiag = newton_casscf.gen_g_hop(mc, mo, ci0, eris0)
         x = numpy.random.random(gall.size)
         # More rigorous test: taking the limit
-        # plot the table on log-log axes to see the actual convergence
-        err_tab = _test_vs_numerical (mc, mo, ci0, eris0, gall, hop, x)
-        x_fac, g_err_fac, h_err_fac = err_tab[-1,:] / err_tab[-2,:]
-        self.assertAlmostEqual (x_fac, g_err_fac, 2)
-        self.assertAlmostEqual (x_fac, h_err_fac, 2)
+        # plot vs p on log-log axes to see the actual convergence
+        _get_err, hdiag_ref = _test_vs_numerical (mc, mo, ci0, eris0, gall, gop, hop, x)
+        self.assertAlmostEqual (lib.finger (hdiag), lib.finger (hdiag_ref), 8) 
+        x1, g1, h1, u1 = _get_err (20)
+        x2, g2, h2, u2 = _get_err (19)
+        self.assertAlmostEqual (g1/g2, .5, 2)
+        self.assertAlmostEqual (h1/h2, .5, 2)
+        self.assertAlmostEqual (u1/u2, .25, 2)
         # Less rigorous fixed tests
         u, ci1 = newton_casscf.extract_rotation(mc, x, 1, ci0)
         self.assertAlmostEqual(lib.finger(gall), 21.288022525148595, 8)
-        self.assertAlmostEqual(lib.finger(hdiag), -4.6864640132374618, 8)
+        self.assertAlmostEqual(lib.finger(hdiag), -15.618395788969822, 8)
         self.assertAlmostEqual(lib.finger(gop(u, ci1)), -412.9441873541524, 8)
         self.assertAlmostEqual(lib.finger(hop(x)), 8.152498748614988, 8)
 
@@ -165,15 +175,18 @@ class KnownValues(unittest.TestCase):
         gall, gop, hop, hdiag = newton_casscf.gen_g_hop(sa, mo, ci0, eris0)
         x = numpy.random.random(gall.size)
         # More rigorous test: taking the limit
-        # plot the table on log-log axes to see the actual convergence
-        err_tab = _test_vs_numerical (sa, mo, ci0, eris0, gall, hop, x)
-        x_fac, g_err_fac, h_err_fac = err_tab[-1,:] / err_tab[-2,:]
-        self.assertAlmostEqual (x_fac, g_err_fac, 2)
-        self.assertAlmostEqual (x_fac, h_err_fac, 2)
+        # plot vs p on log-log axes to see the actual convergence
+        _get_err, hdiag_ref = _test_vs_numerical (sa, mo, ci0, eris0, gall, gop, hop, x)
+        self.assertAlmostEqual (lib.finger (hdiag), lib.finger (hdiag_ref), 8) 
+        x1, g1, h1, u1 = _get_err (20)
+        x2, g2, h2, u2 = _get_err (19)
+        self.assertAlmostEqual (g1/g2, .5, 2)
+        self.assertAlmostEqual (h1/h2, .5, 2)
+        self.assertAlmostEqual (u1/u2, .25, 2)
         # Less rigorous fixed tests
         u, ci1 = newton_casscf.extract_rotation(sa, x, 1, ci0)
         self.assertAlmostEqual(lib.finger(gall), 32.46973284682048, 8)
-        self.assertAlmostEqual(lib.finger(hdiag), -63.6527761153809, 8)
+        self.assertAlmostEqual(lib.finger(hdiag), -70.61862254321514, 8)
         self.assertAlmostEqual(lib.finger(gop(u, ci1)), -49.017079186126, 8)
         self.assertAlmostEqual(lib.finger(hop(x)), 176.2175779856562, 8)
 

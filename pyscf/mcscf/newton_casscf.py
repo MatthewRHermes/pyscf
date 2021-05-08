@@ -293,7 +293,7 @@ def gen_g_hop(casscf, mo, ci0, eris, verbose=None):
 #    h_diag[ncore:nocc,ncore:nocc] -= v_diag[:,ncore:nocc]*2
     h_diag = casscf.pack_uniq_var(h_diag)
 
-    hci_diag = [hd - ec - gc*c*4 for hd, ec, gc, c in zip (_Hdiag (h1cas_0, eri_cas), eci0, gci, ci0)]
+    hci_diag = [hd - ec - gc*c*2 for hd, ec, gc, c in zip (_Hdiag (h1cas_0, eri_cas), eci0, gci, ci0)]
     hci_diag = [h * w for h, w in zip (hci_diag, weights)]
     hdiag_all = numpy.hstack((h_diag*2, _pack_ci (hci_diag)*2))
 

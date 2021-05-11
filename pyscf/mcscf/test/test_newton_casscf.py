@@ -86,13 +86,46 @@ def _get_energy (my_mc, mo1, ci1, eris1):
     return (h0 + numpy.tensordot (h1, dm1, axes=2)
             + 0.5 * numpy.tensordot (h2, dm2, axes=4))
 
+def _get_redundant_gradient (my_mc, mo1, ci1, eris1):
+    ''' For correcting the seminumerical hessian-vector calcn'''
+    ncore, ncas = my_mc.ncore, my_mc.ncas
+    nocc, nmo = ncore + ncas, mo1.shape[1]
+    g0 = numpy.zeros ((nmo,nmo))
+    g0_cas = g0[ncore:nocc,ncore:nocc]
+    g0_core = g0[:ncore,:ncore]
+    mo1_occ = mo1[:,:nocc]
+    mo1_core = mo1[:,:ncore]
+    mo1_cas = mo1_occ[:,ncore:]
+    dm1, dm2 = my_mc.fcisolver.make_rdm12 (ci1, my_mc.ncas, my_mc.nelecas)
+    fcasci = mc1step._fake_h_for_fast_casci (my_mc, mo1, eris1)
+    h1, h0 = fcasci.get_h1eff ()
+    h2 = fcasci.get_h2eff ()
+    g0_cas[:,:] = numpy.dot (h1, dm1) + numpy.einsum ('pabc,qabc->pq', h2, dm2)
+    h1_core = reduce (numpy.dot, (mo1_core.T, my_mc.get_hcore (), mo1_core))
+    h1_core += eris1.vhf_c[:ncore,:ncore]
+    for i in range (ncore):
+        jbuf = eris1.ppaa[i][:ncore,:,:]
+        kbuf = eris1.papa[i][:,:ncore,:]
+        h1_core[:,i] += (numpy.einsum('quv,uv->q', jbuf, dm1) -
+                         numpy.einsum('uqv,uv->q', kbuf, dm1) * .5)
+    g0_core[:,:] = h1_core*2
+    return (g0-g0.T)*2
+
+
 def _test_vs_numerical (my_mc, mo0, ci0, eris0, g0, g1op, h0op, x0):
     ''' Returns a table which reports the fractional error of gradient
         and hessian-vector against finite-difference calculation
         as step size repeatedly halves '''
     e0 = _get_energy (my_mc, mo0, ci0, eris0)
+    _get_redundant_gradient (my_mc, mo0, ci0, eris0)
     ci0_arr = numpy.asarray (ci0).reshape (-1,36)
     tab = numpy.zeros ((21,3))
+    nmo = mo0.shape[1]
+    ncore, ncas, frozen = my_mc.ncore, my_mc.ncas, my_mc.frozen
+    nvar_orb = numpy.count_nonzero (my_mc.uniq_var_indices (nmo,
+        ncore,ncas,frozen))
+    g0_orb = (_get_redundant_gradient (my_mc, mo0, ci0, eris0)
+              + my_mc.unpack_uniq_var (g0[:nvar_orb]))
     def _get_err (p):
         x1 = x0 / (2**p)
         x1_norm = numpy.linalg.norm (x1)
@@ -101,7 +134,15 @@ def _test_vs_numerical (my_mc, mo0, ci0, eris0, g0, g1op, h0op, x0):
         eris1 = my_mc.ao2mo (mo1)
         # Numerical
         e1 = _get_energy (my_mc, mo1, ci1, eris1)
+        k1 = my_mc.unpack_uniq_var (x1[:nvar_orb])
+        g1_corr = numpy.dot (k1, g0_orb)
+        g1_corr = my_mc.pack_uniq_var (g1_corr-g1_corr.T)/2
         g1 = newton_casscf.gen_g_hop (my_mc, mo1, ci1, eris1)[0]
+        g1[:nvar_orb] += g1_corr
+        # g_update
+        g1_approx = g1op (u, ci1) 
+        g1_approx[:nvar_orb] += g1_corr
+        g1_norm = numpy.linalg.norm (g1)
         de_ref = e1 - e0
         dg_ref = g1 - g0
         # Project undefined components out of dg_ref
@@ -115,9 +156,6 @@ def _test_vs_numerical (my_mc, mo0, ci0, eris0, g0, g1op, h0op, x0):
         xhx = numpy.dot (hx, x1)
         de_test = gx 
         dg_test = hx
-        # g_update
-        g1_approx = g1op (u, ci1)
-        g1_norm = numpy.linalg.norm (g1)
         # Relative error
         de_err = (de_test-de_ref)/de_ref
         dg_err = numpy.linalg.norm (dg_test-dg_ref) / dg_ref_norm
@@ -159,7 +197,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(lib.finger(gall), 21.288022525148595, 8)
         self.assertAlmostEqual(lib.finger(hdiag), -15.618395788969822, 8)
         self.assertAlmostEqual(lib.finger(gop(u, ci1)), -412.9441873541524, 8)
-        self.assertAlmostEqual(lib.finger(hop(x)), 8.152498748614988, 8)
+        self.assertAlmostEqual(lib.finger(hop(x)), 24.045699256609716, 8)
 
     def test_get_grad(self):
         self.assertAlmostEqual(mc.e_tot, -3.6268060853430573, 8)
@@ -188,7 +226,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(lib.finger(gall), 32.46973284682048, 8)
         self.assertAlmostEqual(lib.finger(hdiag), -70.61862254321514, 8)
         self.assertAlmostEqual(lib.finger(gop(u, ci1)), -49.017079186126, 8)
-        self.assertAlmostEqual(lib.finger(hop(x)), 176.2175779856562, 8)
+        self.assertAlmostEqual(lib.finger(hop(x)), 136.20779886241564, 8)
 
     def test_sa_get_grad(self):
         self.assertAlmostEqual(sa.e_tot, -3.626586177820634, 7)

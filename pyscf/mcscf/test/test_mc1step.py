@@ -175,11 +175,7 @@ class KnownValues(unittest.TestCase):
         mc1.max_cycle = 1
         mc1.max_cycle_micro = 6
         mc1.kernel(mo)
-        self.assertAlmostEqual(mc1.e_tot, -105.830095088798, 8)
-        # MRH 05/07/2021: reference reduced after Hessian fix
-        # Necessary b/c this tests nonconverged energy
-        # The previous reference was -105.8292690292608
-        # Note that the new reference is lower
+        self.assertAlmostEqual(mc1.e_tot, -105.8292690292608, 8)
 
     def test_dep4_df(self):
         mc1 = mcscf.CASSCF(msym, 4, 4).density_fit()
@@ -188,11 +184,7 @@ class KnownValues(unittest.TestCase):
         mc1.max_cycle = 1
         mc1.max_cycle_micro = 6
         mc1.kernel(mo)
-        self.assertAlmostEqual(mc1.e_tot, -105.830032575679, 8)
-        # MRH 05/07/2021: reference reduced after Hessian fix
-        # Necessary b/c this tests nonconverged energy
-        # The previous reference was -105.82923271851176
-        # Note that the new reference is lower
+        self.assertAlmostEqual(mc1.e_tot, -105.82923271851176, 8)
 
     # FIXME: How to test ci_response_space? The test below seems numerical instable
     #def test_ci_response_space(self):
@@ -365,17 +357,21 @@ class KnownValues(unittest.TestCase):
             # Numerical
             u1 = mc.update_rotate_matrix (x1/2)
             e1 = _get_energy (u1)
+            # Correction to g1 evaluated at different orbitals
+            k1, g1 = (mc.unpack_uniq_var (v) for v in (x1, g0))
+            g1_corr = numpy.dot (k1, g1)
+            g1_corr = mc.pack_uniq_var (g1_corr-g1_corr.T)/2
             # TODO: rationalize conventions?
             # mc1step "x" = newton_casscf "x" * 2 
             # Therefore, I have to divide by 2 above ^, but not in
             # the newton_casscf version of this test. That's annoying
             u1 = mc.update_rotate_matrix (x1)
-            g1 = _true_g_update (u1) 
+            g1 = _true_g_update (u1) + g1_corr
             de = (e1-e0)
             dg = (g1-g0)
             dg_norm = numpy.linalg.norm (dg)
             # Approximate update
-            g1_approx = g_update (u1, ci)
+            g1_approx = g_update (u1, ci) + g1_corr
             g1_norm = numpy.linalg.norm (g1)
             # Relative error
             g_err = (gx - de) / de

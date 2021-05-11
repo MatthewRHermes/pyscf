@@ -352,8 +352,7 @@ def gen_g_hop(casscf, mo, ci0, eris, verbose=None):
         # part8
         # (g_{ps}\delta_{qr}R_rs + g_{qr}\delta_{ps}) * R_pq)/2 + (pr<->qs)
         g_orb = numpy.einsum ('r,rpq->pq', weights, gpq)
-        #x2 -= numpy.dot((g_orb + g_orb.T), x1) * .5 MRH: this is wrong
-        x2 -= numpy.dot(g_orb.T, x1)
+        x2 -= numpy.dot((g_orb + g_orb.T), x1) * .5
         # part2
         # (-2Vhf_{sp}\delta_{qr}R_pq - 2Vhf_{qr}\delta_{sp}R_rs)/2 + (pr<->qs)
         x2[:ncore] += reduce(numpy.dot, (x1[:ncore,ncore:], vhf_ca[ncore:])) * 2

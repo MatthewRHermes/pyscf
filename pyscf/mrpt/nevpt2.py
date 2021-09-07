@@ -390,9 +390,11 @@ def Sijrs(mc, eris, verbose=None):
     eia = mc.mo_energy[:ncore,None] -mc.mo_energy[None,nocc:]
     norm = 0
     e = 0
+    mindenom = 9e99
     with ao2mo.load(feri) as cvcv:
         for i in range(ncore):
             djba = (eia.reshape(-1,1) + eia[i].reshape(1,-1)).ravel()
+            mindenom = min (mindenom, numpy.amin (-djba))
             gi = numpy.asarray(cvcv[i*nvirt:(i+1)*nvirt])
             gi = gi.reshape(nvirt,ncore,nvirt).transpose(1,2,0)
             t2i = (gi.ravel()/djba).reshape(ncore,nvirt,nvirt)
@@ -400,7 +402,7 @@ def Sijrs(mc, eris, verbose=None):
             theta = gi*2 - gi.transpose(0,2,1)
             norm += numpy.einsum('jab,jab', gi, theta)
             e += numpy.einsum('jab,jab', t2i, theta)
-    return norm, e
+    return norm, e, mindenom
 
 def Sijr(mc, dms, eris, verbose=None):
     #Subspace S_ijr^{(1)}
@@ -735,6 +737,13 @@ example examples/dmrg/32-dmrg_casscf_nevpt2_for_FeS.py''')
         if (not self.canonicalized):
             self.mo_coeff,_, self.mo_energy = self.canonicalize(self.mo_coeff,ci=self.load_ci(),verbose=self.verbose)
 
+        if numpy.amin(self.mo_energy[nocc:]) < numpy.amax (self.mo_energy[:ncore]):
+            logger.warn (self, ('At least one virtual orbital has a lower'
+                                ' energy than at least one core orbital.\n'
+                                'That makes this an extremely bad active space!'
+                                '\nSevere intruder-state problems are to be '
+                                'expected!'))
+
         if getattr(self.fcisolver, 'nevpt_intermediate', None):
             logger.info(self, 'DMRG-NEVPT')
             dm1, dm2, dm3 = self.fcisolver._make_dm123(self.load_ci(),ncas,self.nelecas,None)
@@ -764,6 +773,7 @@ example examples/dmrg/32-dmrg_casscf_nevpt2_for_FeS.py''')
             dms['f3ac'] = f3ac
         time1 = log.timer('eri-4pdm contraction', *time1)
 
+        md = 9e99
         if self.compressed_mps:
             from pyscf.dmrgscf.nevpt_mpi import DMRG_COMPRESS_NEVPT
             if self.stored_integral: #Stored perturbation integral and read them again. For debugging purpose.
@@ -788,33 +798,44 @@ example examples/dmrg/32-dmrg_casscf_nevpt2_for_FeS.py''')
             logger.note(self, "Si    (+1)',   E = %.14f",  e_Si  )
 
         else:
-            norm_Sr   , e_Sr    = Sr(self, self.load_ci(), dms, eris)
+            norm_Sr   , e_Sr, md_    = Sr(self, self.load_ci(), dms, eris)
+            md = min (md, md_)
             logger.note(self, "Sr    (-1)',   E = %.14f",  e_Sr  )
             time1 = log.timer("space Sr (-1)'", *time1)
-            norm_Si   , e_Si    = Si(self, self.load_ci(), dms, eris)
+            norm_Si   , e_Si, md_    = Si(self, self.load_ci(), dms, eris)
+            md = min (md, md_)
             logger.note(self, "Si    (+1)',   E = %.14f",  e_Si  )
             time1 = log.timer("space Si (+1)'", *time1)
-        norm_Sijrs, e_Sijrs = Sijrs(self, eris)
+        norm_Sijrs, e_Sijrs, md_ = Sijrs(self, eris)
+        md = min (md, md_)
         logger.note(self, "Sijrs (0)  ,   E = %.14f", e_Sijrs)
         time1 = log.timer('space Sijrs (0)', *time1)
-        norm_Sijr , e_Sijr  = Sijr(self, dms, eris)
+        norm_Sijr , e_Sijr, md_  = Sijr(self, dms, eris)
+        md = min (md, md_)
         logger.note(self, "Sijr  (+1) ,   E = %.14f",  e_Sijr)
         time1 = log.timer('space Sijr (+1)', *time1)
-        norm_Srsi , e_Srsi  = Srsi(self, dms, eris)
+        norm_Srsi , e_Srsi, md_  = Srsi(self, dms, eris)
+        md = min (md, md_)
         logger.note(self, "Srsi  (-1) ,   E = %.14f",  e_Srsi)
         time1 = log.timer('space Srsi (-1)', *time1)
-        norm_Srs  , e_Srs   = Srs(self, dms, eris)
+        norm_Srs  , e_Srs, md_   = Srs(self, dms, eris)
+        md = min (md, md_)
         logger.note(self, "Srs   (-2) ,   E = %.14f",  e_Srs )
         time1 = log.timer('space Srs (-2)', *time1)
-        norm_Sij  , e_Sij   = Sij(self, dms, eris)
+        norm_Sij  , e_Sij, md_   = Sij(self, dms, eris)
+        md = min (md, md_)
         logger.note(self, "Sij   (+2) ,   E = %.14f",  e_Sij )
         time1 = log.timer('space Sij (+2)', *time1)
-        norm_Sir  , e_Sir   = Sir(self, dms, eris)
+        norm_Sir  , e_Sir, md_   = Sir(self, dms, eris)
+        md = min (md, md_)
         logger.note(self, "Sir   (0)' ,   E = %.14f",  e_Sir )
         time1 = log.timer("space Sir (0)'", *time1)
 
         nevpt_e  = e_Sr + e_Si + e_Sijrs + e_Sijr + e_Srsi + e_Srs + e_Sij + e_Sir
         logger.note(self, "Nevpt2 Energy = %.15f", nevpt_e)
+        logger.info(self, ('Intruder-state diagnostic: minimum denomiator in '
+                           'PT2 energy expression = %.15f'), md)
+        if (self.compressed_mps): logger.info (self, "(excluding Sr and Si terms)")
         log.timer('SC-NEVPT2', *time0)
 
         self.e_corr = nevpt_e
@@ -893,9 +914,11 @@ def _extract_orbs(mc, mo_coeff):
 
 def _norm_to_energy(norm, h, diff):
     idx = abs(norm) > NUMERICAL_ZERO
-    ener_t = -(norm[idx] / (diff[idx] + h[idx]/norm[idx])).sum()
+    denom_t = (diff[idx] + h[idx]/norm[idx])
+    mindenom_t = numpy.amin (denom_t)
+    ener_t = -(norm[idx] / denom_t).sum()
     norm_t = norm.sum()
-    return norm_t, ener_t
+    return norm_t, ener_t, mindenom_t
 
 def _ERIS(mc, mo, method='incore'):
     nmo = mo.shape[1]

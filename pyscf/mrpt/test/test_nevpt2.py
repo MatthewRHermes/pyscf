@@ -70,37 +70,37 @@ class KnowValues(unittest.TestCase):
     # energy values for H14 from Dalton
 
     def test_Sr(self):
-        norm, e = nevpt2.Sr(mc, mc.ci, dms, eris)
+        norm, e, _ = nevpt2.Sr(mc, mc.ci, dms, eris)
         self.assertAlmostEqual(e, -0.0202461540, delta=1.0e-6)
         self.assertAlmostEqual(norm, 0.039479583324952064, delta=1.0e-7)
 
     def test_Si(self):
-        norm, e = nevpt2.Si(mc, mc.ci, dms, eris)
+        norm, e, _ = nevpt2.Si(mc, mc.ci, dms, eris)
         self.assertAlmostEqual(e, -0.0021282083, delta=1.0e-6)
         self.assertAlmostEqual(norm, 0.0037402334190064367, delta=1.0e-7)
 
     def test_Sijrs(self):
-        norm, e = nevpt2.Sijrs(mc, eris)
+        norm, e, _ = nevpt2.Sijrs(mc, eris)
         self.assertAlmostEqual(e, -0.0071505004, delta=1.0e-6)
         self.assertAlmostEqual(norm, 0.023107592349719219, delta=1.0e-7)
 
     def test_Sijr(self):
-        norm, e = nevpt2.Sijr(mc,dms, eris)
+        norm, e, _ = nevpt2.Sijr(mc,dms, eris)
         self.assertAlmostEqual(e, -0.0050346117, delta=1.0e-6)
         self.assertAlmostEqual(norm, 0.012664066951786257, delta=1.0e-7)
 
     def test_Srsi(self):
-        norm, e = nevpt2.Srsi(mc,dms, eris)
+        norm, e, _ = nevpt2.Srsi(mc,dms, eris)
         self.assertAlmostEqual(e, -0.0136954715, delta=1.0e-6)
         self.assertAlmostEqual(norm, 0.040695892654346914, delta=1.0e-7)
 
     def test_Srs(self):
-        norm, e = nevpt2.Srs(mc, dms, eris)
+        norm, e, _ = nevpt2.Srs(mc, dms, eris)
         self.assertAlmostEqual(e, -0.0175312323, delta=1.0e-6)
         self.assertAlmostEqual(norm, 0.056323606234166601, delta=1.0e-7)
 
     def test_Sir(self):
-        norm, e = nevpt2.Sir(mc, dms, eris)
+        norm, e, _ = nevpt2.Sir(mc, dms, eris)
         self.assertAlmostEqual(e, -0.0338666048, delta=1.0e-6)
         self.assertAlmostEqual(norm, 0.074269050656629421, delta=1.0e-7)
 

@@ -35,8 +35,8 @@ from functools import reduce
 from scipy import linalg
 from pyscf.df.grad.casdm2_util import solve_df_rdm2, grad_elec_dferi, grad_elec_auxresponse_dferi
 
-def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=None, eris=None, verbose=None,
-                       auxbasis_response=True):
+def Lorb_dot_dgorb_dx (mc_grad, Lorb, mo_coeff=None, ci=None, atmlst=None, mf_grad=None, eris=None,
+                       verbose=None):
     ''' Modification of pyscf.grad.casscf.kernel to compute instead the orbital
     Lagrange term nuclear gradient (sum_pq Lorb_pq d2_Ecas/d_lambda d_kpq)
     This involves removing nuclear-nuclear terms and making the substitution
@@ -44,7 +44,7 @@ def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=No
     (d_[p]qrs + d_pq[r]s + d_p[q]rs + d_pqr[s]) -> d_pqrs
     Where [] around an index implies contraction with Lorb from the left, so that the external index
     (regardless of whether the index on the rdm is bra or ket) is always the first index of Lorb. '''
-
+    mc = mc_grad.base
     # dmo = smoT.dao.smo
     # dao = mo.dmo.moT
     t0 = (lib.logger.process_clock (), lib.logger.perf_counter ())
@@ -133,7 +133,7 @@ def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=No
     #vhf1c, vhf1a, vhf1cL, vhf1aL = mf_grad.get_veff(mol, (dm_core, dm_cas, dmL_core, dmL_cas))
     vj, vk = mf_grad.get_jk (mol, (dm_core, dm_cas, dmL_core, dmL_cas))
     vhf1c, vhf1a, vhf1cL, vhf1aL = list (vj - vk * 0.5)
-    if auxbasis_response:
+    if mc_grad.auxbasis_response:
         de_aux = vj.aux - 0.5 * vk.aux
         #              D.T     +    T.D
         de_aux = ((de_aux[0,2] + de_aux[2,0]) # core-core
@@ -153,13 +153,13 @@ def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=No
     # If this fails I can always debug it by kludging ncore, ncas -> 0, nmo
     dfcasdm2  = solve_df_rdm2 (mc, mo_cas=(mo_cas, moL_cas), casdm2=casdm2)
     de_eri += grad_elec_dferi (mc, mo_cas=mo_cas, dfcasdm2=dfcasdm2, atmlst=atmlst, max_memory=mc.max_memory)[0]
-    if auxbasis_response:
+    if mc_grad.auxbasis_response:
         de_aux += grad_elec_auxresponse_dferi (mc, mo_cas=mo_cas, dfcasdm2=dfcasdm2, atmlst=atmlst,
                                                max_memory=mc.max_memory)[0]
     dfcasdm2  = solve_df_rdm2 (mc, mo_cas=mo_cas, casdm2=casdm2)
     de_eri += grad_elec_dferi (mc, mo_cas=(mo_cas, moL_cas), dfcasdm2=dfcasdm2, atmlst=atmlst,
                                max_memory=mc.max_memory)[0]
-    if auxbasis_response:
+    if mc_grad.auxbasis_response:
         de_aux += grad_elec_auxresponse_dferi (mc, mo_cas=(mo_cas, moL_cas), dfcasdm2=dfcasdm2, atmlst=atmlst,
                                                max_memory=mc.max_memory)[0]
     dfcasdm2 = casdm2 = None
@@ -191,14 +191,15 @@ def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=No
 
     return de
 
-def Lci_dot_dgci_dx (Lci, weights, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=None, eris=None, verbose=None,
-                     auxbasis_response=True):
+def Lci_dot_dgci_dx (mc_grad, Lci, weights, mo_coeff=None, ci=None, atmlst=None, mf_grad=None, eris=None,
+                     verbose=None):
     ''' Modification of pyscf.grad.casscf.kernel to compute instead the CI
     Lagrange term nuclear gradient (sum_IJ Lci_IJ d2_Ecas/d_lambda d_PIJ)
     This involves removing all core-core and nuclear-nuclear terms and making the substitution
     sum_I w_I<L_I|p'q|I> + c.c. -> <0|p'q|0>
     sum_I w_I<L_I|p'r'sq|I> + c.c. -> <0|p'r'sq|0>
     The active-core terms (sum_I w_I<L_I|x'iyi|I>, sum_I w_I <L_I|x'iiy|I>, c.c.) must be retained.'''
+    mc = mc_grad.base
     if mo_coeff is None: mo_coeff = mc.mo_coeff
     if ci is None: ci = mc.ci
     if mf_grad is None: mf_grad = dfrhf_grad.Gradients (mc._scf)
@@ -252,7 +253,7 @@ def Lci_dot_dgci_dx (Lci, weights, mc, mo_coeff=None, ci=None, atmlst=None, mf_g
 
     #vhf1c, vhf1a = mf_grad.get_veff(mol, (dm_core, dm_cas))
     vj, vk = mf_grad.get_jk (mol, (dm_core, dm_cas))
-    if auxbasis_response:
+    if mc_grad.auxbasis_response:
         de_aux = vj.aux - 0.5 * vk.aux
         de_aux = de_aux[0,1] + de_aux[1,0]
         # ^ de_aux[0,0] not included b/c this is CAS lagrange multipliers
@@ -264,7 +265,7 @@ def Lci_dot_dgci_dx (Lci, weights, mc, mo_coeff=None, ci=None, atmlst=None, mf_g
     dfcasdm2 = casdm2 = solve_df_rdm2 (mc, mo_cas=mo_cas, casdm2=casdm2)
     de_eri = grad_elec_dferi (mc, mo_cas=mo_cas, dfcasdm2=dfcasdm2, atmlst=atmlst,
         max_memory=mc.max_memory)[0]
-    if auxbasis_response:
+    if mc_grad.auxbasis_response:
         de_aux += grad_elec_auxresponse_dferi (mc, mo_cas=mo_cas, dfcasdm2=dfcasdm2,
             atmlst=atmlst, max_memory=mc.max_memory)[0]
     dfcasdm2 = casdm2 = None
@@ -353,15 +354,19 @@ class Gradients (sacasscf_grad.Gradients):
         sacasscf_grad.Gradients.__init__(self, mc, state=state)
 
     def kernel (self, **kwargs):
-        mf_grad = kwargs['mf_grad'] if 'mf_grad' in kwargs else None
+        state = kwargs.get ('state')
+        if state is None:
+            self.converged = True
+            mo = kwargs.get ('mo', self.base.mo_coeff)
+            ci = kwargs.get ('ci', self.base.ci)
+            atmlst = kwargs.get ('atmlst', self.atmlst)
+            verbose = kwargs.get ('verbose', self.verbose)
+            return dfcasscf_grad.Gradients (self.base).kernel (
+                mo_coeff=mo, ci=ci, atmlst=atmlst, verbose=verbose)
+        mf_grad = kwargs.get ('mf_grad')
         if mf_grad is None: kwargs['mf_grad'] = dfrhf_grad.Gradients (self.base._scf)
-        # The below only works because dfcasscf_grad is NOT a child of casscf_grad
-        # For instance, I can't monkeypatch rhf_grad this way b/c dfrhf_grad refers to rhf_grad
-        # Maybe it should be, in which case I will have to change this
-        # But on the other hand maybe it can be even simpler?
-        with lib.temporary_env (casscf_grad, Gradients=dfcasscf_grad.Gradients):
-            return sacasscf_grad.Gradients.kernel (self, **kwargs)
+        return sacasscf_grad.Gradients.kernel (self, **kwargs)
 
-    def get_LdotJnuc (self, Lvec, **kwargs):
-        with lib.temporary_env (sacasscf_grad, Lci_dot_dgci_dx=Lci_dot_dgci_dx, Lorb_dot_dgorb_dx=Lorb_dot_dgorb_dx):
-            return sacasscf_grad.Gradients.get_LdotJnuc (self, Lvec, **kwargs)
+    _Lci_dot_dgci_dx = Lci_dot_dgci_dx
+    _Lorb_dot_dgorb_dx = Lorb_dot_dgorb_dx
+

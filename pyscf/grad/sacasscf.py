@@ -35,7 +35,7 @@ from pyscf import lib, ao2mo, mcscf
 
 # ref. Mol. Phys., 99, 103 (2001); DOI: 10.1080/002689700110005642
 
-def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=None, eris=None,
+def Lorb_dot_dgorb_dx (mc_grad, Lorb, mo_coeff=None, ci=None, atmlst=None, mf_grad=None, eris=None,
                        verbose=None):
     ''' Modification of single-state CASSCF electronic energy nuclear gradient to compute instead
     the orbital Lagrange term nuclear gradient:
@@ -47,7 +47,7 @@ def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=No
     ~d_pqrs = L_pt*d_tqrs + L_rt*d_pqts + L_qt*d_ptrs + L_st*d_pqrt
     (NB: L_pq = -L_qp)
     '''
-
+    mc = mc_grad.base
     # dmo = smoT.dao.smo
     # dao = mo.dmo.moT
     t0 = (logger.process_clock(), logger.perf_counter())
@@ -212,7 +212,7 @@ def Lorb_dot_dgorb_dx (Lorb, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=No
 
     return de
 
-def Lci_dot_dgci_dx (Lci, weights, mc, mo_coeff=None, ci=None, atmlst=None, mf_grad=None,
+def Lci_dot_dgci_dx (mc_grad, Lci, weights, mo_coeff=None, ci=None, atmlst=None, mf_grad=None,
                      eris=None, verbose=None):
     ''' Modification of single-state CASSCF electronic energy nuclear gradient to compute instead
     the CI Lagrange term nuclear gradient:
@@ -225,6 +225,7 @@ def Lci_dot_dgci_dx (Lci, weights, mc, mo_coeff=None, ci=None, atmlst=None, mf_g
     (NB: All-core terms ~D_ii, ~d_iijj = 0
      However, active-core terms ~d_xyii, ~d_xiiy != 0)
     '''
+    mc = mc_grad.base
     if mo_coeff is None: mo_coeff = mc.mo_coeff
     if ci is None: ci = mc.ci
     if mf_grad is None: mf_grad = mc._scf.nuc_grad_method()
@@ -578,9 +579,11 @@ class Gradients (lagrange.Gradients):
             eris = self.eris = self.base.ao2mo (mo)
         elif eris is None:
             eris = self.eris
-        fcasscf_grad = casscf_grad.Gradients (self.make_fcasscf (state))
+        fcasscf_grad = self.make_fcasscf (state).nuc_grad_method ()
         return fcasscf_grad.kernel (mo_coeff=mo, ci=ci[state], atmlst=atmlst, verbose=verbose)
 
+    _Lci_dot_dgci_dx = Lci_dot_dgci_dx
+    _Lorb_dot_dgorb_dx = Lorb_dot_dgorb_dx
     def get_LdotJnuc (self, Lvec, state=None, atmlst=None, verbose=None, mo=None, ci=None,
                       eris=None, mf_grad=None, **kwargs):
         if state is None: state = self.state
@@ -602,8 +605,8 @@ class Gradients (lagrange.Gradients):
 
         # CI part
         t0 = (logger.process_clock(), logger.perf_counter())
-        de_Lci = Lci_dot_dgci_dx(Lci, self.weights, self.base, mo_coeff=mo, ci=ci,
-                                 atmlst=atmlst, mf_grad=mf_grad, eris=eris, verbose=verbose)
+        de_Lci = self._Lci_dot_dgci_dx(Lci, self.weights, mo_coeff=mo, ci=ci, atmlst=atmlst,
+                                       mf_grad=mf_grad, eris=eris, verbose=verbose)
         logger.info (self, '--------------- %s gradient Lagrange CI response ---------------',
                      self.base.__class__.__name__)
         if verbose >= logger.INFO: rhf_grad._write(self, self.mol, de_Lci, atmlst)
@@ -612,8 +615,8 @@ class Gradients (lagrange.Gradients):
             self.base.__class__.__name__), *t0)
 
         # Orb part
-        de_Lorb = Lorb_dot_dgorb_dx(Lorb, self.base, mo_coeff=mo, ci=ci,
-                                    atmlst=atmlst, mf_grad=mf_grad, eris=eris, verbose=verbose)
+        de_Lorb = self._Lorb_dot_dgorb_dx(Lorb, mo_coeff=mo, ci=ci, atmlst=atmlst, mf_grad=mf_grad,
+                                          eris=eris, verbose=verbose)
         logger.info (self, '--------------- %s gradient Lagrange orbital response ---------------',
                      self.base.__class__.__name__)
         if verbose >= logger.INFO: rhf_grad._write(self, self.mol, de_Lorb, atmlst)

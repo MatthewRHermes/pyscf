@@ -73,6 +73,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(abs(c2new[0]-c2ref[0]).max(), 0, 12)
         self.assertAlmostEqual(abs(c2new[1]-c2ref[1]).max(), 0, 12)
         self.assertAlmostEqual(abs(c2new[2]-c2ref[2]).max(), 0, 12)
+        print (cinew)
         self.assertAlmostEqual(lib.fp(cinew), -102.17887236599671, 9)
 
     def test_from_fcivec(self):

@@ -91,7 +91,7 @@
  * In spin restricted case (spin == 1), rho_u is assumed to be the
  * spin-free quantities, rho_d is not used.
  */
-static void _eval_rho(double *restrict rho, double *restrict rho_u, const int spin,
+static void _eval_rho(double * rho, double * rho_u, const int spin,
         const int nvar, const int np, int ld_rho_u)
 {
         int i;
@@ -180,7 +180,7 @@ static void _eval_rho(double *restrict rho, double *restrict rho_u, const int sp
         }
 }
 static void _eval_xc(const xc_func_type *func_x, const int spin, const int deriv, const int np,
-                     double *restrict rho, double *restrict exc, const int offset, const int blksize)
+                     double * rho, double * exc, const int offset, const int blksize)
 {
         double *sigma, *tau;
         double *lapl = rho;
@@ -850,7 +850,7 @@ static const int xc_nvar3_offsets[] = {0, 1, 4, 10, 20, 35};
 static const int xc_nvar5_offsets[] = {0, 1, 6, 21, 56, 126};
 static const int xc_nvar7_offsets[] = {0, 1, 8, 36, 120, 330};
 
-static void axpy(double *restrict dst, double *restrict src, const double fac,
+static void axpy(double * dst, double * src, const double fac,
                  const int np, const int nsrc)
 {
         int i, j;
@@ -867,7 +867,7 @@ static const int kseg1[] = {4, 9, 12, 10, 6, 12, 6, 12, 9, 4};
 static const int lseg1[] = {5, 12, 18, 20, 15, 8, 18, 9, 24, 18, 8, 20, 18, 12, 5};
 static const int *seg1[] = {NULL, vseg1, fseg1, kseg1, lseg1};
 
-static void merge_xc(double *restrict dst, double *restrict ebuf, const double fac,
+static void merge_xc(double * dst, double * ebuf, const double fac,
                      const int spin, const int deriv, const int nvar, const int np,
                      const int outlen, const int type)
 {
@@ -951,7 +951,7 @@ static void merge_xc(double *restrict dst, double *restrict ebuf, const double f
 // omega is the range separation parameter mu in xcfun
 void LIBXC_eval_xc(const int nfn, xc_func_type *fn_obj, const double *fac, const int spin,
                    const int deriv, const int nvar, const int np, const int outlen,
-                   double *restrict rho_u, double *restrict output)
+                   double * rho_u, double * output)
 {
         assert(deriv <= 4);
         double *ebuf = malloc(sizeof(double) * np * outlen);

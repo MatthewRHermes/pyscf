@@ -166,18 +166,20 @@ class KnownValues(unittest.TestCase):
         self.assertTrue (dft.libxc.is_nlc(('402', 'b97mv')))
 
     def test_libxc_cam_beta(self):
+        xc_1 = dft.libxc._get_xc (1).xc_arr
+        xc_433 = dft.libxc._get_xc (433).xc_arr
         rsh_tmp = (ctypes.c_double*3)()
-        dft.libxc._itrf.LIBXC_rsh_coeff(1, rsh_tmp)
+        dft.libxc._itrf.LIBXC_rsh_coeff(xc_1, rsh_tmp)
         beta = rsh_tmp[2]
         self.assertEqual(beta, 0)
 
-        dft.libxc._itrf.LIBXC_rsh_coeff(433, rsh_tmp)
-        dft.libxc._itrf.LIBXC_rsh_coeff(1, rsh_tmp)
+        dft.libxc._itrf.LIBXC_rsh_coeff(xc_433, rsh_tmp)
+        dft.libxc._itrf.LIBXC_rsh_coeff(xc_1, rsh_tmp)
         beta = rsh_tmp[2]
         self.assertEqual(beta, 0)
 
-        dft.libxc._itrf.LIBXC_is_hybrid(1)
-        dft.libxc._itrf.LIBXC_rsh_coeff(1, rsh_tmp)
+        dft.libxc._itrf.LIBXC_is_hybrid(xc_1)
+        dft.libxc._itrf.LIBXC_rsh_coeff(xc_1, rsh_tmp)
         beta = rsh_tmp[2]
         self.assertEqual(beta, 0)
 

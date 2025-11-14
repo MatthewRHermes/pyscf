@@ -679,9 +679,9 @@ def kernel_ms1(fci, h1e, eri, norb, nelec, ci0=None, link_index=None,
             return pw[0]+ecore, civec
 
     if sym_idx is None:
-        precond = fci.make_precond(hdiag, pspaceig=pw, pspaceci=pv)
+        precond = fci.make_precond(hdiag, pspaceig=pw, pspaceci=pv, addr=addr)
     else:
-        precond = fci.make_precond(hdiag[sym_idx], pspaceig=pw, pspaceci=pv)
+        precond = fci.make_precond(hdiag[sym_idx], pspaceig=pw, pspaceci=pv, addr=addr)
 
     pw = pv = h0 = None
 

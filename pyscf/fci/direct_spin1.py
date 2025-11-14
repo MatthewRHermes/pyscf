@@ -677,12 +677,13 @@ def kernel_ms1(fci, h1e, eri, norb, nelec, ci0=None, link_index=None,
             civec = numpy.empty(civec_size)
             civec[addr] = pv[:,0]
             return pw[0]+ecore, civec
-    pw = pv = h0 = None
 
     if sym_idx is None:
-        precond = fci.make_precond(hdiag)
+        precond = fci.make_precond(hdiag, pspaceig=pw, pspaceci=pv)
     else:
         precond = fci.make_precond(hdiag[sym_idx])
+
+    pw = pv = h0 = None
 
     h2e = fci.absorb_h1e(h1e, eri, norb, nelec, .5)
     if hop is None:
@@ -747,10 +748,10 @@ def make_pspace_precond(hdiag, pspaceig, pspaceci, addr, level_shift=0):
         h0r[addr] = numpy.dot(h0e0inv, r[addr])
         e1 = numpy.dot(x0, h0r) / numpy.dot(x0, h0x0)
         x1 = r - e1*x0
-        #pspace_x1 = x1[addr].copy()
+        pspace_x1 = x1[addr].copy()
         x1 *= hdiaginv
         # pspace (h0-e0)^{-1} cause diverging?
-        #x1[addr] = numpy.linalg.solve(h0e0, pspace_x1)
+        x1[addr] = numpy.dot(h0e0inv, pspace_x1)
         return x1
     return precond
 

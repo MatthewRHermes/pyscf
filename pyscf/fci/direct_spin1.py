@@ -681,7 +681,7 @@ def kernel_ms1(fci, h1e, eri, norb, nelec, ci0=None, link_index=None,
     if sym_idx is None:
         precond = fci.make_precond(hdiag, pspaceig=pw, pspaceci=pv, addr=addr)
     else:
-        precond = fci.make_precond(hdiag[sym_idx], pspaceig=pw, pspaceci=pv, addr=addr)
+        precond = fci.make_precond(hdiag[sym_idx])
 
     pw = pv = h0 = None
 
@@ -933,7 +933,7 @@ class FCIBase(lib.StreamObject):
         return e, ci
 
     def make_precond(self, hdiag, pspaceig=None, pspaceci=None, addr=None):
-        if (pspaceig is None) or (getattr (self.mol, 'groupname', None) in ('Dooh', 'Coov')):
+        if (pspaceig is None):
             return make_diag_precond(hdiag, pspaceig, pspaceci, addr,
                                      self.level_shift)
         else:

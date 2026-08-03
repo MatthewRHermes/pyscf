@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
+
 '''CASCI and CASSCF
 
 When using results of this code for publications, please cite the following paper:

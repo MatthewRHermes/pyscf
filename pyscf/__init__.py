@@ -82,6 +82,36 @@ else:
                          'these plugins through the environment variable '
                          'PYSCF_EXT_PATH\n' % '\n'.join(__path__[1:]))
 
+if len(__path__) > 1:
+    # Plugins (e.g. pyscf-forge) can add modules to existing subpackages, e.g.
+    # pyscf/tdscf/ris.py. Extend the __path__ of every pyscf.* subpackage with
+    # the corresponding plugin directories so that such modules are importable
+    # without copying them into the pyscf source tree.
+    class _PluginSubpackageFinder:
+        @staticmethod
+        def find_spec(fullname, path=None, target=None):
+            if path is None or not fullname.startswith('pyscf.'):
+                return None
+            import os
+            from importlib.machinery import PathFinder
+            spec = PathFinder.find_spec(fullname, path)
+            locations = getattr(spec, 'submodule_search_locations', None)
+            if not isinstance(locations, list):
+                return spec
+            known = {os.path.realpath(p) for p in locations}
+            name = fullname.rpartition('.')[2]
+            for p in path:
+                subdir = os.path.join(p, name)
+                if os.path.isdir(subdir) and os.path.realpath(subdir) not in known:
+                    locations.append(subdir)
+                    known.add(os.path.realpath(subdir))
+            return spec
+
+    if not any(getattr(f, '__name__', None) == '_PluginSubpackageFinder'
+               for f in sys.meta_path):
+        sys.meta_path.insert(0, _PluginSubpackageFinder)
+    del _PluginSubpackageFinder
+
 import numpy
 if numpy.__version__[:5] in ('1.16.', '1.17.'):
     # Numpy memory leak bug https://github.com/numpy/numpy/issues/13808

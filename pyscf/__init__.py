@@ -82,6 +82,58 @@ else:
                          'these plugins through the environment variable '
                          'PYSCF_EXT_PATH\n' % '\n'.join(__path__[1:]))
 
+PLUGIN_SUBPACKAGE_PATH = {}
+if len(__path__) > 1:
+    # Plugins (e.g. pyscf-forge) can add modules to existing subpackages, e.g.
+    # pyscf/tdscf/ris.py. Extend the __path__ of every pyscf.* subpackage with
+    # the corresponding plugin directories so that such modules are importable
+    # without copying them into the pyscf source tree. Every subpackage whose
+    # search path includes any plugin directory is recorded in
+    # PLUGIN_SUBPACKAGE_PATH, so users can check where their modules came from,
+    # and a warning is issued for any plugin file that cannot be loaded.
+    class _PluginSubpackageFinder:
+        @staticmethod
+        def find_spec(fullname, path=None, target=None,
+                      _core=os.path.realpath(__path__[0]) + os.sep):
+            if path is None or not fullname.startswith('pyscf.'):
+                return None
+            import os
+            from importlib.machinery import PathFinder
+            spec = PathFinder.find_spec(fullname, path)
+            locations = getattr(spec, 'submodule_search_locations', None)
+            if not isinstance(locations, list):
+                return spec
+            known = {os.path.realpath(p) for p in locations}
+            name = fullname.rpartition('.')[2]
+            for p in path:
+                subdir = os.path.join(p, name)
+                if os.path.isdir(subdir) and os.path.realpath(subdir) not in known:
+                    locations.append(subdir)
+                    known.add(os.path.realpath(subdir))
+            if not all(p.startswith(_core) for p in known):
+                PLUGIN_SUBPACKAGE_PATH[fullname] = list(locations)
+                # Plugin directories may share names with core subpackages,
+                # but files in later directories (e.g. a plugin's __init__.py,
+                # pyscf-forge issue #219) are shadowed by those found earlier.
+                import warnings
+                seen = {}
+                for p in locations:
+                    for f in sorted(os.listdir(p)):
+                        if not f.endswith('.py'):
+                            continue
+                        if f in seen:
+                            warnings.warn('%s is shadowed by %s and will not '
+                                          'be loaded' % (os.path.join(p, f),
+                                                         os.path.join(seen[f], f)))
+                        else:
+                            seen[f] = p
+            return spec
+
+    if not any(getattr(f, '__name__', None) == '_PluginSubpackageFinder'
+               for f in sys.meta_path):
+        sys.meta_path.insert(0, _PluginSubpackageFinder)
+    del _PluginSubpackageFinder
+
 import numpy
 if numpy.__version__[:5] in ('1.16.', '1.17.'):
     # Numpy memory leak bug https://github.com/numpy/numpy/issues/13808
